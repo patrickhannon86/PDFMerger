@@ -244,37 +244,64 @@ function Install-Ghostscript {
             </Border>
         </StackPanel>
 
-        <!-- File list with drop shadow -->
-        <Border Grid.Row="1" CornerRadius="8" Background="White" Margin="0,0,0,10"
-                ClipToBounds="False" BorderThickness="0">
-            <Border.Effect>
-                <DropShadowEffect Color="#000000" BlurRadius="12" ShadowDepth="2"
-                                  Opacity="0.08" Direction="270"/>
-            </Border.Effect>
-            <Border CornerRadius="8" BorderBrush="#DDE0E4" BorderThickness="1"
-                    ClipToBounds="True">
-                <ListBox Name="FileList" SelectionMode="Extended" AllowDrop="True"
-                         AlternationCount="2" BorderThickness="0" Background="Transparent"
-                         ScrollViewer.HorizontalScrollBarVisibility="Auto">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock ToolTip="{Binding}" Padding="2,0">
-                                <Run Text="{Binding Mode=OneWay}" />
-                            </TextBlock>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </Border>
-        </Border>
+        <!-- File list + sidebar buttons -->
+        <Grid Grid.Row="1" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
-        <!-- Buttons -->
-        <WrapPanel Grid.Row="2" Margin="0,0,0,10" HorizontalAlignment="Left">
-            <Button Name="BtnAdd"    Style="{StaticResource BtnBase}"   Margin="0,0,6,0">&#x2795; Add Files</Button>
-            <Button Name="BtnRemove" Style="{StaticResource BtnBase}"   Margin="0,0,6,0">&#x2716; Remove</Button>
-            <Button Name="BtnUp"     Style="{StaticResource BtnBase}"   Margin="0,0,6,0">&#x25B2; Up</Button>
-            <Button Name="BtnDown"   Style="{StaticResource BtnBase}"   Margin="0,0,6,0">&#x25BC; Down</Button>
-            <Button Name="BtnMerge"  Style="{StaticResource BtnAccent}" Margin="0,0,0,0">&#x1F500; Merge</Button>
-        </WrapPanel>
+            <!-- File list with drop shadow + empty state -->
+            <Border Grid.Column="0" CornerRadius="8" Background="White"
+                    ClipToBounds="False" BorderThickness="0">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" BlurRadius="12" ShadowDepth="2"
+                                      Opacity="0.08" Direction="270"/>
+                </Border.Effect>
+                <Grid>
+                    <Border CornerRadius="8" BorderBrush="#DDE0E4" BorderThickness="1"
+                            ClipToBounds="True">
+                        <ListBox Name="FileList" SelectionMode="Extended" AllowDrop="True"
+                                 AlternationCount="2" BorderThickness="0" Background="Transparent"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock ToolTip="{Binding}" Padding="2,0">
+                                        <Run Text="{Binding Mode=OneWay}" />
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+                    <!-- Empty state overlay (clickable) -->
+                    <StackPanel Name="EmptyState" VerticalAlignment="Center"
+                                HorizontalAlignment="Center" Cursor="Hand"
+                                Background="Transparent">
+                        <TextBlock Text="&#x1F4C2;" FontSize="40" HorizontalAlignment="Center"
+                                   Margin="0,0,0,8"/>
+                        <TextBlock Text="Drag PDFs here" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="#888" HorizontalAlignment="Center"/>
+                        <TextBlock Text="or click Add Files to get started"
+                                   FontSize="12" Foreground="#AAA" HorizontalAlignment="Center"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Sidebar buttons -->
+            <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Top">
+                <Button Name="BtnAdd"    Style="{StaticResource BtnBase}"   Margin="0,0,0,6"
+                        HorizontalContentAlignment="Left" Padding="10,0" Width="110">&#x2795; Add Files</Button>
+                <Button Name="BtnRemove" Style="{StaticResource BtnBase}"   Margin="0,0,0,6"
+                        HorizontalContentAlignment="Left" Padding="10,0" Width="110">&#x2716; Remove</Button>
+                <Button Name="BtnUp"     Style="{StaticResource BtnBase}"   Margin="0,0,0,6"
+                        HorizontalContentAlignment="Left" Padding="10,0" Width="110">&#x25B2; Up</Button>
+                <Button Name="BtnDown"   Style="{StaticResource BtnBase}"   Margin="0,0,0,16"
+                        HorizontalContentAlignment="Left" Padding="10,0" Width="110">&#x25BC; Down</Button>
+                <Button Name="BtnMerge"  Style="{StaticResource BtnAccent}" Margin="0,0,0,0"
+                        HorizontalContentAlignment="Center" Width="110">&#x1F500; Merge</Button>
+            </StackPanel>
+        </Grid>
 
         <!-- Progress bar (hidden by default) -->
         <ProgressBar Grid.Row="3" Name="ProgressBar" Height="4" Margin="0,0,0,8"
@@ -304,6 +331,7 @@ $statusText    = $window.FindName('StatusText')
 $progressBar   = $window.FindName('ProgressBar')
 $fileBadge     = $window.FindName('FileBadge')
 $fileBadgeText = $window.FindName('FileBadgeText')
+$emptyState    = $window.FindName('EmptyState')
 
 # Store full paths; display short names with full path as tooltip
 $pdfFiles = [System.Collections.Generic.List[string]]::new()
@@ -317,14 +345,29 @@ function Refresh-FileList {
         $item.Tag     = $path
         $fileList.Items.Add($item) | Out-Null
     }
-    # Update file count badge
+    # Update file count badge and empty state
     if ($pdfFiles.Count -gt 0) {
         $fileBadgeText.Text = "$($pdfFiles.Count) file$(if ($pdfFiles.Count -ne 1) {'s'})"
         $fileBadge.Visibility = 'Visible'
+        $emptyState.Visibility = 'Collapsed'
     } else {
         $fileBadge.Visibility = 'Collapsed'
+        $emptyState.Visibility = 'Visible'
     }
 }
+
+# --- Empty state click to add files ---
+$emptyState.Add_MouseLeftButtonDown({
+    $dlg = New-Object Microsoft.Win32.OpenFileDialog
+    $dlg.Title = 'Select PDF files'
+    $dlg.Filter = 'PDF Files (*.pdf)|*.pdf'
+    $dlg.Multiselect = $true
+    if ($dlg.ShowDialog($window)) {
+        foreach ($f in $dlg.FileNames) { $pdfFiles.Add($f) }
+        Refresh-FileList
+        $statusText.Text = "Added $($dlg.FileNames.Count) file(s). Total: $($pdfFiles.Count)"
+    }
+})
 
 # --- Drag-and-drop support ---
 $fileList.Add_DragEnter({
