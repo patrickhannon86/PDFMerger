@@ -1,10 +1,19 @@
-#requires -Version 5.1
 # Install PDFMerger to Program Files and create a desktop shortcut.
-# Run: powershell -ExecutionPolicy Bypass -File install.ps1
+# Usage:  irm https://raw.githubusercontent.com/patrickhannon86/PDFMerger/main/install.ps1 | iex
 
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
+
+$repo = 'https://raw.githubusercontent.com/patrickhannon86/PDFMerger/main'
+
+# --- When piped via iex, save to disk so UAC elevation works ---
+if (-not $PSCommandPath) {
+    $tmp = Join-Path $env:TEMP 'install-pdfmerger.ps1'
+    Invoke-WebRequest -Uri "$repo/install.ps1" -OutFile $tmp -UseBasicParsing
+    powershell -ExecutionPolicy Bypass -File $tmp
+    return
+}
 
 # --- Self-elevate if not admin ---
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
@@ -13,8 +22,6 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
         "-ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
     exit
 }
-
-$repo         = 'https://raw.githubusercontent.com/patrickhannon86/PDFMerger/main'
 $installDir   = 'C:\Program Files\PDFMerger'
 $scriptDest   = Join-Path $installDir   'PDFMerger.ps1'
 $iconDest     = Join-Path $installDir   'PDFMerger.ico'
