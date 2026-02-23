@@ -115,7 +115,7 @@ function Install-Ghostscript {
     WindowStartupLocation="CenterScreen" Background="#F0F2F5"
     FontFamily="Segoe UI" FontSize="13">
     <Window.Resources>
-        <!-- Base button style: rounded, hover/press effects -->
+        <!-- Animated base button style: rounded, smooth hover/press transitions -->
         <Style x:Key="BtnBase" TargetType="Button">
             <Setter Property="Height" Value="32"/>
             <Setter Property="Padding" Value="14,0"/>
@@ -129,13 +129,28 @@ function Install-Ghostscript {
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="border" Background="{TemplateBinding Background}"
                                 CornerRadius="6" Padding="{TemplateBinding Padding}"
-                                BorderThickness="0">
+                                BorderThickness="0" SnapsToDevicePixels="True">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#D2D5DB"/>
-                            </Trigger>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="border"
+                                            Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                            To="#D2D5DB" Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="border"
+                                            Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                            To="#E4E6EB" Duration="0:0:0.2"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="border" Property="Background" Value="#BEC2C9"/>
                             </Trigger>
@@ -145,22 +160,43 @@ function Install-Ghostscript {
             </Setter>
         </Style>
 
-        <!-- Accent (Merge) button style -->
-        <Style x:Key="BtnAccent" TargetType="Button" BasedOn="{StaticResource BtnBase}">
+        <!-- Accent (Merge) button style with animated hover -->
+        <Style x:Key="BtnAccent" TargetType="Button">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="14,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Background" Value="#0078D4"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="border" Background="{TemplateBinding Background}"
-                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                CornerRadius="6" Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#106EBE"/>
-                            </Trigger>
+                            <EventTrigger RoutedEvent="MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="border"
+                                            Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                            To="#106EBE" Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="border"
+                                            Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                            To="#0078D4" Duration="0:0:0.2"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="border" Property="Background" Value="#005A9E"/>
                             </Trigger>
@@ -170,13 +206,16 @@ function Install-Ghostscript {
             </Setter>
         </Style>
 
-        <!-- Alternating row colors for the ListBox -->
+        <!-- Alternating row colors + hover highlight for the ListBox -->
         <Style TargetType="ListBoxItem">
             <Setter Property="Padding" Value="8,6"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Style.Triggers>
                 <Trigger Property="ItemsControl.AlternationIndex" Value="1">
                     <Setter Property="Background" Value="#F7F8FA"/>
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#E8F0FE"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -191,26 +230,41 @@ function Install-Ghostscript {
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <TextBlock Grid.Row="0" FontSize="22" FontWeight="SemiBold"
-                   Foreground="#1a1a2e" Margin="0,0,0,10">
-            <Run Text="&#x1F4C4; "/>PDF Merger
-        </TextBlock>
+        <!-- Header with file count badge -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <TextBlock FontSize="22" FontWeight="SemiBold" Foreground="#1a1a2e"
+                       VerticalAlignment="Center">
+                <Run Text="&#x1F4C4; "/>PDF Merger
+            </TextBlock>
+            <Border Name="FileBadge" Background="#0078D4" CornerRadius="10"
+                    Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center"
+                    Visibility="Collapsed">
+                <TextBlock Name="FileBadgeText" Foreground="White" FontSize="11"
+                           FontWeight="SemiBold"/>
+            </Border>
+        </StackPanel>
 
-        <!-- File list -->
-        <Border Grid.Row="1" CornerRadius="8" BorderBrush="#DDE0E4" BorderThickness="1"
-                Background="White" Margin="0,0,0,10" ClipToBounds="True">
-            <ListBox Name="FileList" SelectionMode="Extended" AllowDrop="True"
-                     AlternationCount="2" BorderThickness="0" Background="Transparent"
-                     ScrollViewer.HorizontalScrollBarVisibility="Auto">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <TextBlock ToolTip="{Binding}" Padding="2,0">
-                            <Run Text="{Binding Mode=OneWay}" />
-                        </TextBlock>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+        <!-- File list with drop shadow -->
+        <Border Grid.Row="1" CornerRadius="8" Background="White" Margin="0,0,0,10"
+                ClipToBounds="False" BorderThickness="0">
+            <Border.Effect>
+                <DropShadowEffect Color="#000000" BlurRadius="12" ShadowDepth="2"
+                                  Opacity="0.08" Direction="270"/>
+            </Border.Effect>
+            <Border CornerRadius="8" BorderBrush="#DDE0E4" BorderThickness="1"
+                    ClipToBounds="True">
+                <ListBox Name="FileList" SelectionMode="Extended" AllowDrop="True"
+                         AlternationCount="2" BorderThickness="0" Background="Transparent"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock ToolTip="{Binding}" Padding="2,0">
+                                <Run Text="{Binding Mode=OneWay}" />
+                            </TextBlock>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
         </Border>
 
         <!-- Buttons -->
@@ -246,8 +300,10 @@ $btnRemove   = $window.FindName('BtnRemove')
 $btnUp       = $window.FindName('BtnUp')
 $btnDown     = $window.FindName('BtnDown')
 $btnMerge    = $window.FindName('BtnMerge')
-$statusText  = $window.FindName('StatusText')
-$progressBar = $window.FindName('ProgressBar')
+$statusText    = $window.FindName('StatusText')
+$progressBar   = $window.FindName('ProgressBar')
+$fileBadge     = $window.FindName('FileBadge')
+$fileBadgeText = $window.FindName('FileBadgeText')
 
 # Store full paths; display short names with full path as tooltip
 $pdfFiles = [System.Collections.Generic.List[string]]::new()
@@ -260,6 +316,13 @@ function Refresh-FileList {
         $item.ToolTip = $path
         $item.Tag     = $path
         $fileList.Items.Add($item) | Out-Null
+    }
+    # Update file count badge
+    if ($pdfFiles.Count -gt 0) {
+        $fileBadgeText.Text = "$($pdfFiles.Count) file$(if ($pdfFiles.Count -ne 1) {'s'})"
+        $fileBadge.Visibility = 'Visible'
+    } else {
+        $fileBadge.Visibility = 'Collapsed'
     }
 }
 
@@ -430,6 +493,35 @@ $btnMerge.Add_Click({
         }
     }
 })
+
+# --- Window Icon (generated at runtime) ---
+# Draw a simple red PDF icon using WPF drawing
+$iconVisual = New-Object System.Windows.Media.DrawingVisual
+$dc = $iconVisual.RenderOpen()
+# Page background
+$dc.DrawRoundedRectangle(
+    [System.Windows.Media.Brushes]::White,
+    (New-Object System.Windows.Media.Pen ([System.Windows.Media.Brushes]::Gray), 0.5),
+    (New-Object System.Windows.Rect 2, 0, 12, 16), 1, 1)
+# Red banner
+$dc.DrawRectangle(
+    (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(220, 50, 50))),
+    $null,
+    (New-Object System.Windows.Rect 2, 3, 12, 6))
+# "PDF" text
+$tf = New-Object System.Windows.Media.FormattedText(
+    'PDF',
+    [System.Globalization.CultureInfo]::InvariantCulture,
+    [System.Windows.FlowDirection]::LeftToRight,
+    (New-Object System.Windows.Media.Typeface 'Segoe UI'),
+    5,
+    [System.Windows.Media.Brushes]::White,
+    1.0)
+$dc.DrawText($tf, (New-Object System.Windows.Point 3.2, 3))
+$dc.Close()
+$rtb = New-Object System.Windows.Media.Imaging.RenderTargetBitmap 16, 16, 96, 96, ([System.Windows.Media.PixelFormats]::Pbgra32)
+$rtb.Render($iconVisual)
+$window.Icon = $rtb
 
 # --- Show Window ---
 $window.ShowDialog() | Out-Null
