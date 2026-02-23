@@ -14,20 +14,27 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit
 }
 
+$repo         = 'https://raw.githubusercontent.com/patrickhannon86/PDFMerger/main'
 $installDir   = 'C:\Program Files\PDFMerger'
-$scriptSrc    = Join-Path $PSScriptRoot 'PDFMerger.ps1'
 $scriptDest   = Join-Path $installDir   'PDFMerger.ps1'
 $iconDest     = Join-Path $installDir   'PDFMerger.ico'
 $desktop      = [Environment]::GetFolderPath('Desktop')
 $shortcutPath = Join-Path $desktop 'PDF Merger.lnk'
 
-# --- Copy script ---
+# --- Get PDFMerger.ps1 (local copy or download) ---
 Write-Host "Installing to $installDir ..."
 New-Item -ItemType Directory -Path $installDir -Force | Out-Null
-Copy-Item -Path $scriptSrc -Destination $scriptDest -Force
+
+$scriptSrc = Join-Path $PSScriptRoot 'PDFMerger.ps1'
+if (Test-Path $scriptSrc) {
+    Copy-Item -Path $scriptSrc -Destination $scriptDest -Force
+} else {
+    Write-Host 'Downloading PDFMerger.ps1 ...'
+    Invoke-WebRequest -Uri "$repo/PDFMerger.ps1" -OutFile $scriptDest -UseBasicParsing
+    $scriptSrc = $scriptDest
+}
 
 # --- Ensure Ghostscript is available ---
-# Source the app script to get Find-Ghostscript / Install-Ghostscript
 $binSrc = Join-Path $PSScriptRoot 'bin'
 if (Test-Path $binSrc) {
     Write-Host 'Copying bundled Ghostscript ...'
