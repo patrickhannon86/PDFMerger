@@ -263,15 +263,7 @@ function Install-Ghostscript {
                             ClipToBounds="True">
                         <ListBox Name="FileList" SelectionMode="Extended" AllowDrop="True"
                                  AlternationCount="2" BorderThickness="0" Background="Transparent"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Auto">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock ToolTip="{Binding}" Padding="2,0">
-                                        <Run Text="{Binding Mode=OneWay}" />
-                                    </TextBlock>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
+                                 ScrollViewer.HorizontalScrollBarVisibility="Auto"/>
                     </Border>
                     <!-- Empty state overlay (clickable) -->
                     <StackPanel Name="EmptyState" VerticalAlignment="Center"
@@ -290,6 +282,18 @@ function Install-Ghostscript {
 
             <!-- Sidebar buttons -->
             <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Top">
+                <!-- View mode toggle -->
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,8" HorizontalAlignment="Center">
+                    <Border Name="BtnViewList" CornerRadius="4" Background="#E4E6EB"
+                            Padding="8,4" Cursor="Hand">
+                        <TextBlock Text="&#x2261;" FontSize="15" Foreground="#1C1E21"
+                                   FontWeight="Bold"/>
+                    </Border>
+                    <Border Name="BtnViewPreview" CornerRadius="4" Background="#0078D4"
+                            Padding="8,4" Margin="4,0,0,0" Cursor="Hand">
+                        <TextBlock Text="&#x229E;" FontSize="15" Foreground="White"/>
+                    </Border>
+                </StackPanel>
                 <Button Name="BtnAdd"    Style="{StaticResource BtnBase}"   Margin="0,0,0,6"
                         HorizontalContentAlignment="Left" Padding="10,0" Width="110">&#x2795; Add Files</Button>
                 <Button Name="BtnRemove" Style="{StaticResource BtnBase}"   Margin="0,0,0,6"
@@ -332,19 +336,149 @@ $progressBar   = $window.FindName('ProgressBar')
 $fileBadge     = $window.FindName('FileBadge')
 $fileBadgeText = $window.FindName('FileBadgeText')
 $emptyState    = $window.FindName('EmptyState')
+$btnViewList    = $window.FindName('BtnViewList')
+$btnViewPreview = $window.FindName('BtnViewPreview')
 
 # Store full paths; display short names with full path as tooltip
 $pdfFiles = [System.Collections.Generic.List[string]]::new()
 
+# Thumbnail state
+$thumbDir = Join-Path $env:TEMP "pdfmerger_thumbs_$PID"
+New-Item -ItemType Directory -Path $thumbDir -Force | Out-Null
+$script:thumbCache = @{}
+$script:viewMode = 'preview'
+$script:gsPath = $null
+
+function Generate-Thumbnail {
+    param([string]$pdfPath)
+    if ($script:thumbCache.ContainsKey($pdfPath)) { return $script:thumbCache[$pdfPath] }
+
+    if (-not $script:gsPath) { $script:gsPath = Find-Ghostscript }
+    if (-not $script:gsPath) { return $null }
+
+    $hash = $pdfPath.GetHashCode().ToString('X8')
+    $outPng = Join-Path $thumbDir "${hash}.png"
+
+    if (Test-Path $outPng) {
+        $script:thumbCache[$pdfPath] = $outPng
+        return $outPng
+    }
+
+    try {
+        $gsArgs = @(
+            '-dNOPAUSE', '-dBATCH', '-dFirstPage=1', '-dLastPage=1',
+            '-sDEVICE=png16m', '-r72',
+            "-sOutputFile=`"$outPng`"",
+            "`"$pdfPath`""
+        )
+        $proc = Start-Process -FilePath $script:gsPath -ArgumentList $gsArgs `
+            -WindowStyle Hidden -Wait -PassThru
+        if ($proc.ExitCode -eq 0 -and (Test-Path $outPng)) {
+            $script:thumbCache[$pdfPath] = $outPng
+            return $outPng
+        }
+    } catch {}
+    return $null
+}
+
+function New-ThumbImage {
+    param([string]$thumbPath)
+    $img = New-Object System.Windows.Controls.Image
+    $bmp = New-Object System.Windows.Media.Imaging.BitmapImage
+    $bmp.BeginInit()
+    $bmp.UriSource = [Uri]::new($thumbPath)
+    $bmp.DecodePixelWidth = 120
+    $bmp.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
+    $bmp.EndInit()
+    $img.Source = $bmp
+    $img.Width  = 120
+    $img.Margin = [System.Windows.Thickness]::new(0,0,8,0)
+    return $img
+}
+
+function New-ThumbPlaceholder {
+    $ph = New-Object System.Windows.Controls.Border
+    $ph.Width  = 120
+    $ph.Height = 155
+    $ph.Background = [System.Windows.Media.SolidColorBrush]::new(
+        [System.Windows.Media.Color]::FromRgb(0xF0, 0xF2, 0xF5))
+    $ph.CornerRadius = [System.Windows.CornerRadius]::new(4)
+    $ph.Margin = [System.Windows.Thickness]::new(0,0,8,0)
+
+    $inner = New-Object System.Windows.Controls.StackPanel
+    $inner.VerticalAlignment   = 'Center'
+    $inner.HorizontalAlignment = 'Center'
+
+    $icon = New-Object System.Windows.Controls.TextBlock
+    $icon.Text = [char]::ConvertFromUtf32(0x1F4C4)
+    $icon.FontSize = 24
+    $icon.HorizontalAlignment = 'Center'
+    $inner.Children.Add($icon) | Out-Null
+
+    $bar = New-Object System.Windows.Controls.ProgressBar
+    $bar.IsIndeterminate = $true
+    $bar.Width  = 60
+    $bar.Height = 4
+    $bar.Foreground = [System.Windows.Media.SolidColorBrush]::new(
+        [System.Windows.Media.Color]::FromRgb(0x00, 0x78, 0xD4))
+    $bar.Background = [System.Windows.Media.SolidColorBrush]::new(
+        [System.Windows.Media.Color]::FromRgb(0xE4, 0xE6, 0xEB))
+    $bar.BorderThickness = [System.Windows.Thickness]::new(0)
+    $bar.Margin = [System.Windows.Thickness]::new(0,4,0,0)
+    $inner.Children.Add($bar) | Out-Null
+
+    $ph.Child = $inner
+    return $ph
+}
+
 function Refresh-FileList {
     $fileList.Items.Clear()
+    $pendingThumbs = [System.Collections.Generic.List[int]]::new()
+
     foreach ($path in $pdfFiles) {
         $item = New-Object System.Windows.Controls.ListBoxItem
-        $item.Content = [System.IO.Path]::GetFileName($path)
-        $item.ToolTip = $path
         $item.Tag     = $path
+        $item.ToolTip = $path
+
+        if ($script:viewMode -eq 'preview') {
+            $sp = New-Object System.Windows.Controls.StackPanel
+            $sp.Orientation = 'Horizontal'
+            $sp.Margin = [System.Windows.Thickness]::new(2)
+
+            $cached = $null
+            if ($script:thumbCache.ContainsKey($path)) { $cached = $script:thumbCache[$path] }
+
+            if ($cached -and (Test-Path $cached)) {
+                $sp.Children.Add((New-ThumbImage $cached)) | Out-Null
+            } else {
+                $sp.Children.Add((New-ThumbPlaceholder)) | Out-Null
+                $pendingThumbs.Add($fileList.Items.Count)
+            }
+
+            $textPanel = New-Object System.Windows.Controls.StackPanel
+            $textPanel.VerticalAlignment = 'Center'
+            $fnBlock = New-Object System.Windows.Controls.TextBlock
+            $fnBlock.Text = [System.IO.Path]::GetFileName($path)
+            $fnBlock.FontWeight = [System.Windows.FontWeights]::SemiBold
+            $fnBlock.FontSize = 13
+            $textPanel.Children.Add($fnBlock) | Out-Null
+            $dirBlock = New-Object System.Windows.Controls.TextBlock
+            $dirBlock.Text = [System.IO.Path]::GetDirectoryName($path)
+            $dirBlock.FontSize = 11
+            $dirBlock.Foreground = [System.Windows.Media.Brushes]::Gray
+            $dirBlock.TextTrimming = 'CharacterEllipsis'
+            $dirBlock.MaxWidth = 300
+            $textPanel.Children.Add($dirBlock) | Out-Null
+            $sp.Children.Add($textPanel) | Out-Null
+
+            $item.Content = $sp
+        } else {
+            $item.Content = [System.IO.Path]::GetFileName($path)
+        }
+
         $fileList.Items.Add($item) | Out-Null
     }
+
     # Update file count badge and empty state
     if ($pdfFiles.Count -gt 0) {
         $fileBadgeText.Text = "$($pdfFiles.Count) file$(if ($pdfFiles.Count -ne 1) {'s'})"
@@ -353,6 +487,33 @@ function Refresh-FileList {
     } else {
         $fileBadge.Visibility = 'Collapsed'
         $emptyState.Visibility = 'Visible'
+    }
+
+    # Generate pending thumbnails one-by-one, replacing placeholders as they finish
+    if ($pendingThumbs.Count -gt 0) {
+        # Flush so placeholders render before GS work starts
+        [System.Windows.Threading.Dispatcher]::CurrentDispatcher.Invoke(
+            [System.Windows.Threading.DispatcherPriority]::Background, [Action]{ })
+
+        foreach ($idx in $pendingThumbs) {
+            $listItem = $fileList.Items[$idx]
+            $sp = $listItem.Content
+            $thumbPath = Generate-Thumbnail $listItem.Tag
+
+            if ($thumbPath -and (Test-Path $thumbPath)) {
+                $sp.Children.RemoveAt(0)
+                $sp.Children.Insert(0, (New-ThumbImage $thumbPath))
+            } else {
+                # Stop the spinner — show a static fallback
+                $ph = $sp.Children[0]
+                ($ph.Child.Children[1]).IsIndeterminate = $false
+                ($ph.Child.Children[1]).Visibility = 'Collapsed'
+            }
+
+            # Let the UI repaint after each thumbnail
+            [System.Windows.Threading.Dispatcher]::CurrentDispatcher.Invoke(
+                [System.Windows.Threading.DispatcherPriority]::Background, [Action]{ })
+        }
     }
 }
 
@@ -366,6 +527,43 @@ $emptyState.Add_MouseLeftButtonDown({
         foreach ($f in $dlg.FileNames) { $pdfFiles.Add($f) }
         Refresh-FileList
         $statusText.Text = "Added $($dlg.FileNames.Count) file(s). Total: $($pdfFiles.Count)"
+    }
+})
+
+# --- View toggle handlers ---
+function Update-ViewToggle {
+    if ($script:viewMode -eq 'list') {
+        $btnViewList.Background = [System.Windows.Media.SolidColorBrush]::new(
+            [System.Windows.Media.Color]::FromRgb(0x00, 0x78, 0xD4))
+        ($btnViewList.Child).Foreground = [System.Windows.Media.Brushes]::White
+        $btnViewPreview.Background = [System.Windows.Media.SolidColorBrush]::new(
+            [System.Windows.Media.Color]::FromRgb(0xE4, 0xE6, 0xEB))
+        ($btnViewPreview.Child).Foreground = [System.Windows.Media.SolidColorBrush]::new(
+            [System.Windows.Media.Color]::FromRgb(0x1C, 0x1E, 0x21))
+    } else {
+        $btnViewPreview.Background = [System.Windows.Media.SolidColorBrush]::new(
+            [System.Windows.Media.Color]::FromRgb(0x00, 0x78, 0xD4))
+        ($btnViewPreview.Child).Foreground = [System.Windows.Media.Brushes]::White
+        $btnViewList.Background = [System.Windows.Media.SolidColorBrush]::new(
+            [System.Windows.Media.Color]::FromRgb(0xE4, 0xE6, 0xEB))
+        ($btnViewList.Child).Foreground = [System.Windows.Media.SolidColorBrush]::new(
+            [System.Windows.Media.Color]::FromRgb(0x1C, 0x1E, 0x21))
+    }
+}
+
+$btnViewList.Add_MouseLeftButtonDown({
+    if ($script:viewMode -ne 'list') {
+        $script:viewMode = 'list'
+        Update-ViewToggle
+        Refresh-FileList
+    }
+})
+
+$btnViewPreview.Add_MouseLeftButtonDown({
+    if ($script:viewMode -ne 'preview') {
+        $script:viewMode = 'preview'
+        Update-ViewToggle
+        Refresh-FileList
     }
 })
 
@@ -565,6 +763,13 @@ $dc.Close()
 $rtb = New-Object System.Windows.Media.Imaging.RenderTargetBitmap 16, 16, 96, 96, ([System.Windows.Media.PixelFormats]::Pbgra32)
 $rtb.Render($iconVisual)
 $window.Icon = $rtb
+
+# --- Cleanup thumbnails on close ---
+$window.Add_Closed({
+    if (Test-Path $thumbDir) {
+        Remove-Item $thumbDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+})
 
 # --- Show Window ---
 $window.ShowDialog() | Out-Null
