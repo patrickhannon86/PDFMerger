@@ -268,7 +268,7 @@ function Install-Ghostscript {
                     <!-- Empty state overlay (clickable) -->
                     <StackPanel Name="EmptyState" VerticalAlignment="Center"
                                 HorizontalAlignment="Center" Cursor="Hand"
-                                Background="Transparent">
+                                Background="Transparent" AllowDrop="True">
                         <TextBlock Text="&#x1F4C2;" FontSize="40" HorizontalAlignment="Center"
                                    Margin="0,0,0,8"/>
                         <TextBlock Text="Drag PDFs here" FontSize="15" FontWeight="SemiBold"
@@ -567,8 +567,8 @@ $btnViewPreview.Add_MouseLeftButtonDown({
     }
 })
 
-# --- Drag-and-drop support ---
-$fileList.Add_DragEnter({
+# --- Drag-and-drop support (shared by FileList and EmptyState) ---
+$onDragEnter = {
     param($sender, $e)
     if ($e.Data.GetDataPresent([Windows.DataFormats]::FileDrop)) {
         $files = $e.Data.GetData([Windows.DataFormats]::FileDrop)
@@ -582,9 +582,9 @@ $fileList.Add_DragEnter({
         $e.Effects = [Windows.DragDropEffects]::None
     }
     $e.Handled = $true
-})
+}
 
-$fileList.Add_Drop({
+$onDrop = {
     param($sender, $e)
     if ($e.Data.GetDataPresent([Windows.DataFormats]::FileDrop)) {
         $files = $e.Data.GetData([Windows.DataFormats]::FileDrop)
@@ -600,7 +600,12 @@ $fileList.Add_Drop({
             $statusText.Text = "Added $added file(s). Total: $($pdfFiles.Count)"
         }
     }
-})
+}
+
+$fileList.Add_DragEnter($onDragEnter)
+$fileList.Add_Drop($onDrop)
+$emptyState.Add_DragEnter($onDragEnter)
+$emptyState.Add_Drop($onDrop)
 
 # --- Button Handlers ---
 
