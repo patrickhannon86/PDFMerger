@@ -12,15 +12,21 @@ A lightweight Windows tool for merging PDF files. Built with PowerShell + WPF â€
 
 ## Install
 
-Open PowerShell and run:
+Open PowerShell and run these three commands:
 
 ```powershell
-git clone https://github.com/patrickhannon86/PDFMerger.git
-cd PDFMerger
-powershell -ExecutionPolicy Bypass -File install.ps1
+mkdir "$env:TEMP\PDFMerger" -Force | Out-Null
+iwr https://raw.githubusercontent.com/patrickhannon86/PDFMerger/main/install.ps1 -OutFile "$env:TEMP\PDFMerger\install.ps1"
+iwr https://raw.githubusercontent.com/patrickhannon86/PDFMerger/main/PDFMerger.ps1 -OutFile "$env:TEMP\PDFMerger\PDFMerger.ps1"
 ```
 
-UAC will prompt for admin. The installer will:
+Then run the installer (UAC will prompt for admin):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:TEMP\PDFMerger\install.ps1"
+```
+
+The installer will:
 
 1. Copy `PDFMerger.ps1` to `C:\Program Files\PDFMerger\`
 2. Download [Ghostscript](https://ghostscript.com/) if not already installed
