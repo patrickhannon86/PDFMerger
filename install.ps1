@@ -28,15 +28,18 @@ $iconDest     = Join-Path $installDir   'PDFMerger.ico'
 $desktop      = [Environment]::GetFolderPath('Desktop')
 $shortcutPath = Join-Path $desktop 'PDF Merger.lnk'
 
-# --- Get PDFMerger.ps1 (local copy or download) ---
-Write-Host "Installing to $installDir ..."
+# --- Get PDFMerger.ps1 (local repo copy or download latest) ---
 New-Item -ItemType Directory -Path $installDir -Force | Out-Null
 
-$scriptSrc = Join-Path $PSScriptRoot 'PDFMerger.ps1'
-if (Test-Path $scriptSrc) {
-    Copy-Item -Path $scriptSrc -Destination $scriptDest -Force
+$localScript = Join-Path $PSScriptRoot 'PDFMerger.ps1'
+$isRepoInstall = ($PSScriptRoot -ne $env:TEMP) -and (Test-Path $localScript)
+
+if ($isRepoInstall) {
+    Write-Host "Installing from local repo to $installDir ..."
+    Copy-Item -Path $localScript -Destination $scriptDest -Force
+    $scriptSrc = $localScript
 } else {
-    Write-Host 'Downloading PDFMerger.ps1 ...'
+    Write-Host "Downloading latest PDFMerger.ps1 to $installDir ..."
     Invoke-WebRequest -Uri "$repo/PDFMerger.ps1" -OutFile $scriptDest -UseBasicParsing
     $scriptSrc = $scriptDest
 }
@@ -159,3 +162,5 @@ $sc.Save()
 
 Write-Host ''
 Write-Host 'Done! PDF Merger shortcut is on your desktop.' -ForegroundColor Green
+Write-Host ''
+Read-Host 'Press Enter to close'
