@@ -26,6 +26,39 @@ Write-Host "Installing to $installDir ..."
 New-Item -ItemType Directory -Path $installDir -Force | Out-Null
 Copy-Item -Path $scriptSrc -Destination $scriptDest -Force
 
+# --- Ensure Ghostscript is available ---
+# Source the app script to get Find-Ghostscript / Install-Ghostscript
+$binSrc = Join-Path $PSScriptRoot 'bin'
+if (Test-Path $binSrc) {
+    Write-Host 'Copying bundled Ghostscript ...'
+    Copy-Item -Path $binSrc -Destination $installDir -Recurse -Force
+}
+
+# Point $binDir at the install location so Install-Ghostscript writes there
+$binDir = Join-Path $installDir 'bin'
+$scriptDir = $installDir
+
+# Extract Find-Ghostscript & Install-Ghostscript from the app without running it
+$ast = [System.Management.Automation.Language.Parser]::ParseFile(
+    $scriptSrc, [ref]$null, [ref]$null)
+$ast.FindAll({
+    $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+    $args[0].Name -in @('Find-Ghostscript', 'Install-Ghostscript')
+}, $false) | ForEach-Object { . ([scriptblock]::Create($_.Extent.Text)) }
+
+$gs = Find-Ghostscript
+if (-not $gs) {
+    Write-Host 'Ghostscript not found — downloading ...'
+    $gs = Install-Ghostscript
+    if ($gs) {
+        Write-Host "Ghostscript installed to $binDir" -ForegroundColor Green
+    } else {
+        Write-Host 'WARNING: Could not download Ghostscript. Thumbnails will not work until GS is installed.' -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "Ghostscript found: $gs"
+}
+
 # --- Generate .ico from the same WPF drawing the app uses ---
 function New-PdfIcon {
     param([string]$outPath, [int]$size = 48)
