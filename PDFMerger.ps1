@@ -3,6 +3,18 @@ Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
 
+# Set AppUserModelID so the taskbar shows our icon instead of PowerShell's
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class AppId {
+    [DllImport("shell32.dll", SetLastError = true)]
+    public static extern int SetCurrentProcessExplicitAppUserModelID(
+        [MarshalAs(UnmanagedType.LPWStr)] string AppID);
+}
+"@
+[AppId]::SetCurrentProcessExplicitAppUserModelID('PDFMerger.App') | Out-Null
+
 # --- Ghostscript Detection & Auto-Download ---
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $binDir    = Join-Path $scriptDir 'bin'
@@ -298,6 +310,13 @@ function Install-Ghostscript {
                         HorizontalContentAlignment="Left" Padding="10,0" Width="110">&#x2795; Add Files</Button>
                 <Button Name="BtnRemove" Style="{StaticResource BtnBase}"   Margin="0,0,0,6"
                         HorizontalContentAlignment="Left" Padding="10,0" Width="110">&#x2716; Remove</Button>
+                <Button Name="BtnClear" Style="{StaticResource BtnBase}" Margin="0,0,0,6"
+                        HorizontalContentAlignment="Left" Padding="10,0" Width="110">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#x21BA;" FontSize="18" VerticalAlignment="Center" Margin="0,-2,3,0"/>
+                        <TextBlock Text="Clear" FontSize="13" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
                 <Button Name="BtnUp"     Style="{StaticResource BtnBase}"   Margin="0,0,0,6"
                         HorizontalContentAlignment="Left" Padding="10,0" Width="110">&#x25B2; Up</Button>
                 <Button Name="BtnDown"   Style="{StaticResource BtnBase}"   Margin="0,0,0,16"
@@ -328,6 +347,7 @@ $window = [Windows.Markup.XamlReader]::Load($reader)
 $fileList    = $window.FindName('FileList')
 $btnAdd      = $window.FindName('BtnAdd')
 $btnRemove   = $window.FindName('BtnRemove')
+$btnClear    = $window.FindName('BtnClear')
 $btnUp       = $window.FindName('BtnUp')
 $btnDown     = $window.FindName('BtnDown')
 $btnMerge    = $window.FindName('BtnMerge')
@@ -387,19 +407,21 @@ function New-ThumbImage {
     $bmp = New-Object System.Windows.Media.Imaging.BitmapImage
     $bmp.BeginInit()
     $bmp.UriSource = [Uri]::new($thumbPath)
-    $bmp.DecodePixelWidth = 120
+    $bmp.DecodePixelWidth = 80
     $bmp.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
     $bmp.EndInit()
     $img.Source = $bmp
-    $img.Width  = 120
+    $img.Width  = 80
+    $img.Stretch = [System.Windows.Media.Stretch]::Uniform
+    $img.VerticalAlignment = 'Top'
     $img.Margin = [System.Windows.Thickness]::new(0,0,8,0)
     return $img
 }
 
 function New-ThumbPlaceholder {
     $ph = New-Object System.Windows.Controls.Border
-    $ph.Width  = 120
-    $ph.Height = 155
+    $ph.Width  = 80
+    $ph.Height = 104
     $ph.Background = [System.Windows.Media.SolidColorBrush]::new(
         [System.Windows.Media.Color]::FromRgb(0xF0, 0xF2, 0xF5))
     $ph.CornerRadius = [System.Windows.CornerRadius]::new(4)
@@ -636,6 +658,14 @@ $btnRemove.Add_Click({
     $statusText.Text = "Removed $($selected.Count) file(s). Total: $($pdfFiles.Count)"
 })
 
+# Clear All
+$btnClear.Add_Click({
+    $pdfFiles.Clear()
+    $script:thumbCache = @{}
+    Refresh-FileList
+    $statusText.Text = 'All files cleared.'
+})
+
 # Move Up
 $btnUp.Add_Click({
     $idx = $fileList.SelectedIndex
@@ -740,19 +770,25 @@ $btnMerge.Add_Click({
     }
 })
 
-# --- Window Icon (generated at runtime) ---
-# Draw a simple red PDF icon using WPF drawing
+# --- Window Icon (generated at runtime, 32x32 for taskbar) ---
+# White page with red→blue gradient banner + "PDF" text
 $iconVisual = New-Object System.Windows.Media.DrawingVisual
 $dc = $iconVisual.RenderOpen()
+$dc.PushTransform([System.Windows.Media.ScaleTransform]::new(2, 2))
 # Page background
 $dc.DrawRoundedRectangle(
     [System.Windows.Media.Brushes]::White,
     (New-Object System.Windows.Media.Pen ([System.Windows.Media.Brushes]::Gray), 0.5),
     (New-Object System.Windows.Rect 2, 0, 12, 16), 1, 1)
-# Red banner
-$dc.DrawRectangle(
-    (New-Object System.Windows.Media.SolidColorBrush ([System.Windows.Media.Color]::FromRgb(220, 50, 50))),
-    $null,
+# Red→Blue gradient banner
+$gradBrush = New-Object System.Windows.Media.LinearGradientBrush
+$gradBrush.StartPoint = [System.Windows.Point]::new(0, 0)
+$gradBrush.EndPoint   = [System.Windows.Point]::new(1, 0)
+$gradBrush.GradientStops.Add([System.Windows.Media.GradientStop]::new(
+    [System.Windows.Media.Color]::FromRgb(220, 50, 50), 0))
+$gradBrush.GradientStops.Add([System.Windows.Media.GradientStop]::new(
+    [System.Windows.Media.Color]::FromRgb(0, 120, 212), 1))
+$dc.DrawRectangle($gradBrush, $null,
     (New-Object System.Windows.Rect 2, 3, 12, 6))
 # "PDF" text
 $tf = New-Object System.Windows.Media.FormattedText(
@@ -764,8 +800,9 @@ $tf = New-Object System.Windows.Media.FormattedText(
     [System.Windows.Media.Brushes]::White,
     1.0)
 $dc.DrawText($tf, (New-Object System.Windows.Point 3.2, 3))
+$dc.Pop()
 $dc.Close()
-$rtb = New-Object System.Windows.Media.Imaging.RenderTargetBitmap 16, 16, 96, 96, ([System.Windows.Media.PixelFormats]::Pbgra32)
+$rtb = New-Object System.Windows.Media.Imaging.RenderTargetBitmap 32, 32, 96, 96, ([System.Windows.Media.PixelFormats]::Pbgra32)
 $rtb.Render($iconVisual)
 $window.Icon = $rtb
 
@@ -775,6 +812,19 @@ $window.Add_Closed({
         Remove-Item $thumbDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 })
+
+# --- Import files from context menu ---
+$importFile = Join-Path $env:TEMP 'pdfmerger_import.txt'
+if (Test-Path $importFile) {
+    $importPaths = Get-Content $importFile -ErrorAction SilentlyContinue |
+        Where-Object { $_ -and (Test-Path $_) }
+    Remove-Item $importFile -Force -ErrorAction SilentlyContinue
+    if ($importPaths) {
+        foreach ($p in $importPaths) { $pdfFiles.Add($p) }
+        Refresh-FileList
+        $statusText.Text = "Imported $($importPaths.Count) file(s) from Explorer."
+    }
+}
 
 # --- Show Window ---
 $window.ShowDialog() | Out-Null

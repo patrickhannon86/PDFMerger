@@ -90,11 +90,15 @@ function New-PdfIcon {
         [System.Windows.Media.Brushes]::White,
         (New-Object System.Windows.Media.Pen ([System.Windows.Media.Brushes]::Gray), 0.5),
         (New-Object System.Windows.Rect 2, 0, 12, 16), 1, 1)
-    # Red banner
-    $dc.DrawRectangle(
-        (New-Object System.Windows.Media.SolidColorBrush (
-            [System.Windows.Media.Color]::FromRgb(220, 50, 50))),
-        $null,
+    # Red->Orange gradient banner
+    $gradBrush = New-Object System.Windows.Media.LinearGradientBrush
+    $gradBrush.StartPoint = [System.Windows.Point]::new(0, 0)
+    $gradBrush.EndPoint   = [System.Windows.Point]::new(1, 0)
+    $gradBrush.GradientStops.Add([System.Windows.Media.GradientStop]::new(
+        [System.Windows.Media.Color]::FromRgb(220, 50, 50), 0))
+    $gradBrush.GradientStops.Add([System.Windows.Media.GradientStop]::new(
+        [System.Windows.Media.Color]::FromRgb(0, 120, 212), 1))
+    $dc.DrawRectangle($gradBrush, $null,
         (New-Object System.Windows.Rect 2, 3, 12, 6))
     # "PDF" text
     $tf = New-Object System.Windows.Media.FormattedText(
@@ -160,7 +164,63 @@ $sc.WorkingDirectory = $installDir
 $sc.IconLocation     = $iconDest
 $sc.Save()
 
+# --- Generate context-merge.vbs (multi-select collector) ---
+Write-Host 'Setting up Explorer context menu ...'
+$contextVbs = Join-Path $installDir 'context-merge.vbs'
+$contextVbsContent = @"
+' context-merge.vbs — collects multi-select PDF paths and launches PDF Merger
+Dim fso, importPath, lockPath, f
+Set fso = CreateObject("Scripting.FileSystemObject")
+importPath = fso.GetSpecialFolder(2) & "\pdfmerger_import.txt"
+lockPath   = fso.GetSpecialFolder(2) & "\pdfmerger_import.lock"
+
+' Append the file path passed via %1
+Set f = fso.OpenTextFile(importPath, 8, True)
+f.WriteLine WScript.Arguments(0)
+f.Close
+
+' Try to create lock file — first instance wins
+On Error Resume Next
+Set f = fso.CreateTextFile(lockPath, False)
+If Err.Number <> 0 Then
+    ' Another instance already has the lock — just exit
+    WScript.Quit
+End If
+On Error GoTo 0
+f.Close
+
+' First instance: wait for other instances to finish appending
+WScript.Sleep 500
+
+' Launch PDF Merger
+Dim launchVbs
+launchVbs = fso.GetParentFolderName(WScript.ScriptFullName) & "\launch.vbs"
+CreateObject("WScript.Shell").Run "wscript.exe """ & launchVbs & """", 0, False
+
+' Clean up lock file
+fso.DeleteFile lockPath, True
+"@
+[System.IO.File]::WriteAllText($contextVbs, $contextVbsContent)
+
+# --- Register shell context menu for .pdf files ---
+$regBase = 'HKCU:\Software\Classes\SystemFileAssociations\.pdf\shell\PDFMerger'
+New-Item -Path "$regBase\command" -Force | Out-Null
+Set-ItemProperty -Path $regBase -Name '(Default)' -Value 'Merge with PDF Merger'
+Set-ItemProperty -Path $regBase -Name 'Icon' -Value $iconDest
+Set-ItemProperty -Path $regBase -Name 'MultiSelectModel' -Value 'Player'
+Set-ItemProperty -Path "$regBase\command" -Name '(Default)' `
+    -Value "wscript.exe `"$contextVbs`" `"%1`""
+
+# --- Copy uninstall script ---
+$uninstallSrc  = Join-Path $PSScriptRoot 'uninstall.ps1'
+$uninstallDest = Join-Path $installDir   'uninstall.ps1'
+if (Test-Path $uninstallSrc) {
+    Copy-Item -Path $uninstallSrc -Destination $uninstallDest -Force
+    Write-Host 'Uninstall script copied.'
+}
+
 Write-Host ''
 Write-Host 'Done! PDF Merger shortcut is on your desktop.' -ForegroundColor Green
+Write-Host 'Right-click PDFs in Explorer to "Merge with PDF Merger".' -ForegroundColor Green
 Write-Host ''
 Read-Host 'Press Enter to close'
