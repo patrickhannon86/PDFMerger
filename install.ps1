@@ -211,13 +211,15 @@ Set-ItemProperty -Path $regBase -Name 'MultiSelectModel' -Value 'Player'
 Set-ItemProperty -Path "$regBase\command" -Name '(Default)' `
     -Value "wscript.exe `"$contextVbs`" `"%1`""
 
-# --- Copy uninstall script ---
+# --- Install uninstall script ---
+$uninstallDest = Join-Path $installDir 'uninstall.ps1'
 $uninstallSrc  = Join-Path $PSScriptRoot 'uninstall.ps1'
-$uninstallDest = Join-Path $installDir   'uninstall.ps1'
-if (Test-Path $uninstallSrc) {
+if ($isRepoInstall -and (Test-Path $uninstallSrc)) {
     Copy-Item -Path $uninstallSrc -Destination $uninstallDest -Force
-    Write-Host 'Uninstall script copied.'
+} else {
+    Invoke-WebRequest -Uri "$repo/uninstall.ps1" -OutFile $uninstallDest -UseBasicParsing
 }
+Write-Host 'Uninstall script installed.'
 
 Write-Host ''
 Write-Host 'Done! PDF Merger shortcut is on your desktop.' -ForegroundColor Green
