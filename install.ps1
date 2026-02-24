@@ -90,7 +90,7 @@ function New-PdfIcon {
         [System.Windows.Media.Brushes]::White,
         (New-Object System.Windows.Media.Pen ([System.Windows.Media.Brushes]::Gray), 0.5),
         (New-Object System.Windows.Rect 2, 0, 12, 16), 1, 1)
-    # Red->Orange gradient banner
+    # Red->Blue gradient banner
     $gradBrush = New-Object System.Windows.Media.LinearGradientBrush
     $gradBrush.StartPoint = [System.Windows.Point]::new(0, 0)
     $gradBrush.EndPoint   = [System.Windows.Point]::new(1, 0)
