@@ -132,8 +132,9 @@ function New-PdfIcon {
     $w.Write([uint16]0)                       # Reserved
     $w.Write([uint16]1)                       # Type = ICO
     $w.Write([uint16]1)                       # Image count
-    $w.Write([byte]$size)                     # Width
-    $w.Write([byte]$size)                     # Height
+    $icoSize = if ($size -ge 256) { [byte]0 } else { [byte]$size }
+    $w.Write($icoSize)                        # Width  (0 = 256)
+    $w.Write($icoSize)                        # Height (0 = 256)
     $w.Write([byte]0)                         # Palette colours
     $w.Write([byte]0)                         # Reserved
     $w.Write([uint16]1)                       # Colour planes
@@ -146,8 +147,12 @@ function New-PdfIcon {
     $w.Dispose(); $ico.Dispose()
 }
 
+# Remove old icon and shortcut to bust Windows icon cache
+if (Test-Path $iconDest)     { Remove-Item $iconDest -Force }
+if (Test-Path $shortcutPath) { Remove-Item $shortcutPath -Force }
+
 Write-Host 'Generating icon ...'
-New-PdfIcon -outPath $iconDest -size 48
+New-PdfIcon -outPath $iconDest -size 256
 
 # --- Generate silent launcher (no console flash) ---
 $launchVbs = Join-Path $installDir 'launch.vbs'
@@ -217,9 +222,16 @@ $uninstallSrc  = Join-Path $PSScriptRoot 'uninstall.ps1'
 if ($isRepoInstall -and (Test-Path $uninstallSrc)) {
     Copy-Item -Path $uninstallSrc -Destination $uninstallDest -Force
 } else {
-    Invoke-WebRequest -Uri "$repo/uninstall.ps1" -OutFile $uninstallDest -UseBasicParsing
+    Write-Host 'Downloading uninstall.ps1 ...'
+    try {
+        Invoke-WebRequest -Uri "$repo/uninstall.ps1" -OutFile $uninstallDest -UseBasicParsing
+    } catch {
+        Write-Host "WARNING: Could not download uninstall.ps1: $_" -ForegroundColor Yellow
+    }
 }
-Write-Host 'Uninstall script installed.'
+if (Test-Path $uninstallDest) {
+    Write-Host 'Uninstall script installed.'
+}
 
 Write-Host ''
 Write-Host 'Done! PDF Merger shortcut is on your desktop.' -ForegroundColor Green
