@@ -65,7 +65,7 @@ $ast.FindAll({
 
 $gs = Find-Ghostscript
 if (-not $gs) {
-    Write-Host 'Ghostscript not found — downloading ...'
+    Write-Host 'Ghostscript not found -downloading ...'
     $gs = Install-Ghostscript
     if ($gs) {
         Write-Host "Ghostscript installed to $binDir" -ForegroundColor Green
@@ -168,7 +168,7 @@ $sc.Save()
 Write-Host 'Setting up Explorer context menu ...'
 $contextVbs = Join-Path $installDir 'context-merge.vbs'
 $contextVbsContent = @"
-' context-merge.vbs — collects multi-select PDF paths and launches PDF Merger
+' context-merge.vbs -collects multi-select PDF paths and launches PDF Merger
 Dim fso, importPath, lockPath, f
 Set fso = CreateObject("Scripting.FileSystemObject")
 importPath = fso.GetSpecialFolder(2) & "\pdfmerger_import.txt"
@@ -179,11 +179,11 @@ Set f = fso.OpenTextFile(importPath, 8, True)
 f.WriteLine WScript.Arguments(0)
 f.Close
 
-' Try to create lock file — first instance wins
+' Try to create lock file -first instance wins
 On Error Resume Next
 Set f = fso.CreateTextFile(lockPath, False)
 If Err.Number <> 0 Then
-    ' Another instance already has the lock — just exit
+    ' Another instance already has the lock -just exit
     WScript.Quit
 End If
 On Error GoTo 0
@@ -225,4 +225,3 @@ Write-Host ''
 Write-Host 'Done! PDF Merger shortcut is on your desktop.' -ForegroundColor Green
 Write-Host 'Right-click PDFs in Explorer to "Merge with PDF Merger".' -ForegroundColor Green
 Write-Host ''
-Read-Host 'Press Enter to close'
